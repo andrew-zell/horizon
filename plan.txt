@@ -1,0 +1,209 @@
+Before writing the prompt let me check the available skills.Good — the algorithmic art skill is highly relevant here. The canvas-design skill also looks promising. Let me check that one quickly.Good — I have everything I need. The algorithmic art skill is the most directly relevant here since Horizon is fundamentally a parametric generative tool. Now let me write the Cursor prompt.
+
+---
+
+Here's the prompt. It's comprehensive because the gradient rendering, glass effects, and export pipeline all need to be precisely specified to get something genuinely beautiful rather than a basic CSS gradient picker.
+
+---
+
+Build **Horizon** — a sky gradient generator with atmospheric controls, glass UI, and PNG/SVG export. This is a standalone React + TypeScript application. Vite for build tooling.
+
+**Core concept**: The entire page background IS the gradient — it responds live to every control adjustment. A floating glass control panel anchored to the bottom of the viewport contains all controls and can be minimized to a thin strip. The experience should feel like standing at a window adjusting your view of the sky.
+
+---
+
+**GRADIENT ENGINE**
+
+The gradient is rendered as a full-viewport `<canvas>` element behind all UI. It must be redrawn on every parameter change using `requestAnimationFrame` — no CSS gradients, canvas only. This gives pixel-level control and enables export at arbitrary resolution.
+
+Implement `buildSkyGradient(params: SkyParams): ImageData` as the core rendering function. It constructs a multi-stop vertical linear gradient by sampling a continuous color function at `n` points across the canvas height. The color function takes a normalized Y position `(0 = top, 1 = bottom)` and the full `SkyParams` object and returns an `[r, g, b]` tuple.
+
+The color function must be atmospheric — not a simple lerp between two colors but a physically-inspired model:
+
+- **Zenith zone** (Y: 0.0 → 0.35): Deep sky color, slightly desaturated and shifted toward violet at high altitude. Controlled by `zenithHue`, `zenithSaturation`, `zenithLightness`.
+- **Mid sky zone** (Y: 0.35 → 0.62): Transition zone. Color blends using a smooth cubic easing function — `t³(6t² − 15t + 10)` — not linear interpolation. This is where the most color complexity lives.
+- **Horizon zone** (Y: 0.62 → 0.82): The critical band. Warm colors, glow, atmospheric haze. Controlled by `horizonHue`, `horizonIntensity`, `hazeWidth`.
+- **Ground zone** (Y: 0.82 → 1.0): Silhouette / ground color, dark, slightly warm.
+
+All zone boundaries are soft — use the smoothstep function `f(t) = t²(3 − 2t)` for all transitions between zones. No hard edges anywhere.
+
+**Atmospheric presets** — implement these as named `SkyParams` configurations selectable from the control panel:
+
+- `GOLDEN_HOUR`: Amber horizon (#E8A020), violet zenith (#1A0A3C), high haze intensity
+- `BLUE_HOUR`: Steel blue zenith (#0D1B3E), pale cyan horizon (#A8C8E8), low saturation
+- `OVERCAST`: Near-white zenith (#D8DDE8), grey-blue horizon (#8090A8), zero haze
+- `STORM`: Dark grey-purple zenith (#1A1520), olive-grey horizon (#4A4830), heavy atmosphere
+- `DUSK`: Deep indigo zenith (#0A0818), coral-pink horizon (#E85030), dramatic transition
+- `CLEAR_NOON`: Saturated blue zenith (#1060C8), pale blue horizon (#A8C8F0), minimal haze
+
+---
+
+**EFFECTS LAYER**
+
+Render effects on a second `<canvas>` element layered above the gradient canvas, below the UI. Effects are composited with `globalCompositeOperation: 'screen'` at low opacity so they illuminate rather than obscure.
+
+**Noise effect**: Implement smooth Perlin-like noise using a summed sinusoid approximation — no external libraries. The noise canvas renders a full-viewport texture of soft luminance variation at `opacity: noiseOpacity` (range 0–0.15). Grain size controlled by `noiseScale` — small values produce fine film grain, large values produce soft cloud-like variation. Noise is static (computed once) unless `noiseAnimated` is true, in which case it drifts slowly using a time offset in the `requestAnimationFrame` loop.
+
+**Glass bars effect** (as shown in the reference): Vertical bars of slightly lighter luminance, soft-edged, semi-transparent. Rendered as a series of vertical `linearGradient` fills on the effects canvas. Each bar: width `barWidth`px, horizontal spacing `barSpacing`px, opacity `barOpacity` (range 0–0.12). Bar edges use a Gaussian falloff — brightest at center, fading to zero at edges. Bar positions are deterministic from a seed value so they don't shift on re-render. Number of bars fills the viewport width based on spacing. This should reproduce the effect in the reference image — subtle vertical light columns suggesting glass or atmospheric refraction.
+
+Effects parameters:
+```typescript
+interface EffectsParams {
+  noiseEnabled: boolean
+  noiseOpacity: number      // 0–0.15
+  noiseScale: number        // 10–200
+  noiseAnimated: boolean
+  barsEnabled: boolean
+  barOpacity: number        // 0–0.12
+  barWidth: number          // 20–120px
+  barSpacing: number        // 40–200px
+  barSeed: number           // deterministic positioning
+}
+```
+
+---
+
+**FULL PARAMS TYPE**
+
+```typescript
+interface SkyParams {
+  // Zenith
+  zenithHue: number           // 0–360
+  zenithSaturation: number    // 0–100
+  zenithLightness: number     // 0–100
+
+  // Horizon
+  horizonHue: number          // 0–360
+  horizonSaturation: number   // 0–100
+  horizonLightness: number    // 0–100
+  horizonIntensity: number    // 0–1, controls warm glow spread
+  hazeWidth: number           // 0–1, controls horizon band width
+
+  // Atmosphere
+  atmosphericScatter: number  // 0–1, adds blue-shift to mid sky
+  sunsetIntensity: number     // 0–1, amplifies warm horizon colors
+  clarity: number             // 0–1, 0=hazy/milky, 1=sharp/saturated
+
+  // Ground
+  groundHue: number           // 0–360
+  groundDarkness: number      // 0–1
+
+  // Meta
+  preset: string | null
+  effects: EffectsParams
+}
+```
+
+---
+
+**GLASS CONTROL PANEL**
+
+A floating panel anchored `20px` from the bottom of the viewport, horizontally centered, `max-width: 680px`, `width: calc(100% - 40px)`. 
+
+Visual treatment — this is the most important design element:
+- Background: `rgba(255, 255, 255, 0.08)` 
+- `backdrop-filter: blur(24px) saturate(180%)`
+- Border: `1px solid rgba(255, 255, 255, 0.18)` top and sides only
+- Border radius: `16px 16px 0 0` — rounded top, flush to bottom
+- Box shadow: `0 -8px 40px rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.2)`
+- The panel should feel like frosted glass floating above the sky
+
+**Minimized state**: Panel collapses to a `48px` tall strip showing only the preset selector and a `▲ expand` button. Transition via `framer-motion` with `height` animation, `spring stiffness: 200, damping: 28`.
+
+**Expanded state**: `320px` tall, scrollable if needed. Organized into three collapsible sections with subtle dividers:
+
+**ATMOSPHERE** section:
+- Preset selector: horizontal pill buttons for the 6 presets, active state highlighted with white at `0.2` opacity
+- `CLARITY` slider: 0–100
+- `ATMOSPHERIC SCATTER` slider: 0–100  
+- `SUNSET INTENSITY` slider: 0–100
+
+**COLORS** section:
+- Three compact hue/saturation/lightness slider groups: ZENITH, HORIZON, GROUND
+- Each group: a small color swatch showing the current color, then three sliders stacked
+- Hue slider background is a full spectrum gradient
+
+**EFFECTS** section:
+- `NOISE` toggle + opacity slider + scale slider + animated toggle
+- `GLASS BARS` toggle + opacity slider + width slider + spacing slider
+
+**Export row** — always visible at the bottom of the panel even in minimized state:
+- `EXPORT PNG` button: triggers canvas export at `window.devicePixelRatio * 2` resolution. Downloads as `horizon-[timestamp].png`
+- `EXPORT SVG` button: generates an SVG approximation using `<linearGradient>` with 32 color stops sampled from the current gradient function. Downloads as `horizon-[timestamp].svg`
+- Both buttons: `font-size: 11px`, uppercase, `letter-spacing: 0.1em`, white text, `rgba(255,255,255,0.12)` background, `1px solid rgba(255,255,255,0.2)` border, `border-radius: 6px`, `padding: 8px 16px`
+
+---
+
+**TYPOGRAPHY AND UI TOKENS**
+
+Import from Google Fonts: `Instrument Serif` for any display text, `DM Mono` for all labels, values, and controls.
+
+```css
+:root {
+  --font-display: 'Instrument Serif', serif;
+  --font-ui: 'DM Mono', monospace;
+  --glass-bg: rgba(255, 255, 255, 0.08);
+  --glass-border: rgba(255, 255, 255, 0.18);
+  --glass-text: rgba(255, 255, 255, 0.9);
+  --glass-text-dim: rgba(255, 255, 255, 0.45);
+  --glass-active: rgba(255, 255, 255, 0.2);
+}
+```
+
+All slider tracks: `rgba(255,255,255,0.15)` background, `rgba(255,255,255,0.9)` thumb, no default browser styling. Slider labels: `10px DM Mono`, `letter-spacing: 0.08em`, uppercase, `--glass-text-dim`. Current values displayed inline right-aligned next to labels.
+
+Section headers inside the panel: `11px DM Mono`, `letter-spacing: 0.12em`, uppercase, `--glass-text-dim`, with a `1px rgba(255,255,255,0.1)` rule beneath.
+
+---
+
+**WORDMARK**
+
+Top-left of the viewport, `position: fixed`, `z-index: 100`. "Horizon" in `Instrument Serif`, `22px`, white, `opacity: 0.7`. A subtle `H` lettermark to its left — an SVG of two vertical lines connected by a horizontal crossbar, drawn in white at `0.5` opacity, `18px` tall. No background, no container.
+
+---
+
+**BEHAVIOR DETAILS**
+
+- On first load: initialize with `GOLDEN_HOUR` preset
+- Selecting a preset: animate the gradient transition over `600ms` by interpolating all `SkyParams` values using a linear tween — the sky should smoothly shift between states, not jump
+- All slider changes: immediate canvas redraw via `requestAnimationFrame`, no debounce — the gradient must feel physically responsive
+- Window resize: redraw canvas at new dimensions, maintain aspect-correct gradient
+- The page should have `overflow: hidden`, no scrollbars visible
+
+---
+
+**FILE STRUCTURE**
+
+```
+src/
+  components/
+    ControlPanel/
+      ControlPanel.tsx
+      ControlPanel.module.css
+    GradientCanvas/
+      GradientCanvas.tsx
+    EffectsCanvas/
+      EffectsCanvas.tsx
+  lib/
+    gradientEngine.ts    // buildSkyGradient(), color functions, smoothstep
+    effectsEngine.ts     // noise and glass bars rendering
+    presets.ts           // named SkyParams configurations
+    export.ts            // PNG and SVG export functions
+  types/
+    index.ts             // SkyParams, EffectsParams
+  hooks/
+    useAnimationFrame.ts
+    useSkyParams.ts      // state management for all params
+  App.tsx
+  main.tsx
+```
+
+No external UI libraries. No Tailwind. All styling via CSS modules. `framer-motion` for the panel expand/collapse animation only.
+
+---
+
+This is the complete spec. Build it in full — do not stub or simplify any section. The gradient engine, effects layer, glass panel, and export pipeline must all be functional on first run.
+
+---
+
+The two things that will make or break this in practice: the smoothstep transitions between gradient zones (if those are linear the gradient will look cheap), and the glass bars effect (the Gaussian falloff on each bar edge is what makes them look like light through glass rather than just stripes). Make sure Cursor doesn't simplify either of those.
