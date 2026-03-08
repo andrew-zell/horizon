@@ -158,7 +158,6 @@ precision highp float;
 uniform sampler2D u_texture;
 uniform float u_barWidth;
 uniform float u_refraction;
-uniform float u_highlightOpacity;
 uniform float u_seed;
 uniform vec2 u_resolution;
 in vec2 v_uv;
@@ -169,26 +168,37 @@ float hash(float n) {
 }
 
 void main() {
-  float x = v_uv.x * u_resolution.x;
-  float barIndex = floor(x / max(u_barWidth, 1.0));
-  float offset = (hash(barIndex + u_seed * 0.01) - 0.5) * 2.0 * u_refraction;
-  float shiftedX = clamp((x + offset) / u_resolution.x, 0.0, 1.0);
-  vec4 color = texture(u_texture, vec2(shiftedX, v_uv.y));
+  float uvBarWidth = max(u_barWidth / u_resolution.x, 0.001);
+  float barIndex = floor(v_uv.x / uvBarWidth);
+  float barNext = barIndex + 1.0;
 
-  float posInBar = fract(x / u_barWidth);
-  float edgeWidth = 1.5 / u_barWidth;
-  float leftEdge = smoothstep(0.0, edgeWidth, posInBar);
-  float rightEdge = smoothstep(1.0, 1.0 - edgeWidth, posInBar);
-  float edgeMask = clamp((1.0 - leftEdge) + (1.0 - rightEdge), 0.0, 1.0);
+  float rand   = hash(barIndex + u_seed * 0.01);
+  float rand2  = hash(barIndex + u_seed * 0.01 + 137.5);
+  float randN  = hash(barNext  + u_seed * 0.01);
+  float rand2N = hash(barNext  + u_seed * 0.01 + 137.5);
 
-  float highlightStrength = edgeMask * u_highlightOpacity;
-  color.rgb = mix(color.rgb, vec3(1.0), highlightStrength * 0.35);
+  float offsetX  = (rand  - 0.5) * 2.0 * (u_refraction / u_resolution.x);
+  float offsetY  = (rand2 - 0.5) * 2.0 * (u_refraction / u_resolution.y);
+  float offsetXN = (randN  - 0.5) * 2.0 * (u_refraction / u_resolution.x);
+  float offsetYN = (rand2N - 0.5) * 2.0 * (u_refraction / u_resolution.y);
 
-  float innerEdge = smoothstep(edgeWidth, edgeWidth * 3.0, posInBar)
-                  * smoothstep(1.0 - edgeWidth, 1.0 - edgeWidth * 3.0, posInBar);
-  color.rgb *= 1.0 - ((1.0 - innerEdge) * u_highlightOpacity * 0.15);
+  float shiftedX = clamp(v_uv.x + offsetX, 0.0, 1.0);
+  float shiftedY = clamp(v_uv.y + offsetY, 0.0, 1.0);
+  vec4 col = texture(u_texture, vec2(shiftedX, shiftedY));
 
-  fragColor = color;
+  float edgePos = fract(v_uv.x / uvBarWidth);
+  float edgeDist = min(edgePos, 1.0 - edgePos);
+  float edgeMask = 1.0 - smoothstep(0.0, 0.08, edgeDist);
+  float divergence = length(vec2(offsetX - offsetXN, offsetY - offsetYN));
+  float maxPossibleDivergence = 2.0 * (u_refraction / u_resolution.x) * 1.414;
+  float normalizedDivergence = divergence / max(maxPossibleDivergence, 0.0001);
+  float causticStrength = smoothstep(0.7, 1.0, normalizedDivergence);
+  float caustic = edgeMask * causticStrength * 0.6;
+
+  vec4 causticColor = texture(u_texture, vec2(0.5, shiftedY));
+  col.rgb = mix(col.rgb, max(col.rgb, causticColor.rgb * 1.4), caustic);
+
+  fragColor = vec4(clamp(col.rgb, 0.0, 1.0), 1.0);
 }`
 
 const PASSTHROUGH_FRAG = `#version 300 es
@@ -197,7 +207,7 @@ uniform sampler2D u_texture;
 in vec2 v_uv;
 out vec4 fragColor;
 void main() {
-  fragColor = texture(u_texture, v_uv);
+  fragColor = texture(u_texture, vec2(v_uv.x, 1.0 - v_uv.y));
 }`
 
 export function createGradientRenderer(
@@ -283,7 +293,6 @@ export function createGradientRenderer(
     texture: gl.getUniformLocation(refractionProgram, 'u_texture'),
     barWidth: gl.getUniformLocation(refractionProgram, 'u_barWidth'),
     refraction: gl.getUniformLocation(refractionProgram, 'u_refraction'),
-    highlightOpacity: gl.getUniformLocation(refractionProgram, 'u_highlightOpacity'),
     seed: gl.getUniformLocation(refractionProgram, 'u_seed'),
     resolution: gl.getUniformLocation(refractionProgram, 'u_resolution'),
   }
@@ -346,11 +355,11 @@ export function createGradientRenderer(
       gl.bindTexture(gl.TEXTURE_2D, fboTexture)
 
       if (params.effects.barsEnabled) {
+        console.log('refraction pass running, strength:', params.effects.refractStrength)
         gl.useProgram(refractionProgram)
         gl.uniform1i(refractionUniforms.texture, 0)
         gl.uniform1f(refractionUniforms.barWidth, params.effects.barWidth)
         gl.uniform1f(refractionUniforms.refraction, params.effects.refractStrength)
-        gl.uniform1f(refractionUniforms.highlightOpacity, params.effects.highlightOpacity)
         gl.uniform1f(refractionUniforms.seed, params.effects.barSeed)
         gl.uniform2f(refractionUniforms.resolution, canvas.width, canvas.height)
       } else {

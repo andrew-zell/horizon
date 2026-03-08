@@ -125,7 +125,6 @@ const interpolateEffects = (from: SkyParams['effects'], to: SkyParams['effects']
   barsEnabled: t < 1 ? from.barsEnabled || to.barsEnabled : to.barsEnabled,
   barWidth: from.barWidth + (to.barWidth - from.barWidth) * t,
   refractStrength: from.refractStrength + (to.refractStrength - from.refractStrength) * t,
-  highlightOpacity: from.highlightOpacity + (to.highlightOpacity - from.highlightOpacity) * t,
   barSeed: t < 1 ? from.barSeed : to.barSeed,
 })
 

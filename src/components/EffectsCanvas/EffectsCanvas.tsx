@@ -5,10 +5,15 @@ import { getParams } from '../../lib/paramsStore'
 export const EffectsCanvas = () => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const timeoutRef = useRef<number | null>(null)
+  const bufferRef = useRef<HTMLCanvasElement | null>(null)
 
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
+    if (!bufferRef.current) {
+      bufferRef.current = document.createElement('canvas')
+    }
+    const bufferCanvas = bufferRef.current
 
     let lastKey = ''
     let rafId = 0
@@ -17,6 +22,8 @@ export const EffectsCanvas = () => {
     const resize = () => {
       canvas.width = Math.max(1, Math.round(window.innerWidth * window.devicePixelRatio))
       canvas.height = Math.max(1, Math.round(window.innerHeight * window.devicePixelRatio))
+      bufferCanvas.width = canvas.width
+      bufferCanvas.height = canvas.height
       lastKey = ''
     }
 
@@ -41,29 +48,29 @@ export const EffectsCanvas = () => {
           }
         }
         lastKey = key
-        timeoutRef.current = window.setTimeout(draw, 120)
+        rafId = window.requestAnimationFrame(draw)
         return
       }
 
       if (shouldRedraw) {
         const ctx = canvas.getContext('2d')
-        if (ctx) {
+        const bufferCtx = bufferCanvas.getContext('2d')
+        if (ctx && bufferCtx) {
           const blur = getNoiseBlurAmount(params.noiseScale)
           canvas.style.filter = blur > 0.1 ? `blur(${blur}px)` : 'none'
+          bufferCtx.clearRect(0, 0, bufferCanvas.width, bufferCanvas.height)
+          renderGrain(bufferCtx, bufferCanvas.width, bufferCanvas.height)
           ctx.clearRect(0, 0, canvas.width, canvas.height)
           ctx.save()
           ctx.globalCompositeOperation = 'overlay'
-          renderGrain(ctx, canvas.width, canvas.height, params.noiseOpacity)
+          ctx.globalAlpha = params.noiseOpacity
+          ctx.drawImage(bufferCanvas, 0, 0)
           ctx.restore()
         }
       }
 
       lastKey = key
-      if (params.noiseAnimated) {
-        rafId = window.requestAnimationFrame(draw)
-      } else {
-        timeoutRef.current = window.setTimeout(draw, 120)
-      }
+      rafId = window.requestAnimationFrame(draw)
     }
 
     resize()

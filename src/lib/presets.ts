@@ -18,8 +18,7 @@ const baseEffects = {
   noiseAnimated: false,
   barsEnabled: false,
   barWidth: 24,
-  refractStrength: 12,
-  highlightOpacity: 0.4,
+  refractStrength: 60,
   barSeed: 42,
 }
 

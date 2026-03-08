@@ -6,7 +6,6 @@ export interface EffectsParams {
   barsEnabled: boolean
   barWidth: number
   refractStrength: number
-  highlightOpacity: number
   barSeed: number
 }
 

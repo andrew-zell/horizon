@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { clearDirty, getParams, isDirty, isGradientDirty, markDirty } from '../../lib/paramsStore'
+import { clearDirty, getParams, isDirty, markDirty } from '../../lib/paramsStore'
 import { createGradientRenderer } from '../../lib/gradientShader'
 
 export const GradientCanvas = () => {
@@ -25,14 +25,9 @@ export const GradientCanvas = () => {
     const loop = () => {
       const renderer = rendererRef.current
 
-      if (renderer) {
-        if (isDirty()) {
-          renderer.render(getParams())
-          clearDirty()
-        } else if (isGradientDirty()) {
-          renderer.render(getParams())
-          clearDirty()
-        }
+      if (renderer && isDirty()) {
+        renderer.render(getParams())
+        clearDirty()
       }
 
       rafId = window.requestAnimationFrame(loop)
