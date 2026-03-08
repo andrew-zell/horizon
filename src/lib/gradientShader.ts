@@ -141,11 +141,11 @@ float bayer(ivec2 p) {
 
 void main() {
   vec2 uv = gl_FragCoord.xy / u_resolution;
-  vec2 origin = vec2(0.5, 1.08);
+  vec2 origin = vec2(0.5, -0.08);
   vec2 toPixel = uv - origin;
   float maxDist = length(vec2(0.5, 1.08));
   float radialT = clamp(length(toPixel) / maxDist, 0.0, 1.0);
-  float linearT = 1.0 - uv.y;
+  float linearT = uv.y;
   float t = linearT + (radialT - linearT) * u_radialDispersion;
   t = clamp((t / max(u_gradientScale, 0.0001)) - u_gradientShift, 0.0, 1.0);
   vec3 color = skyColor(t);

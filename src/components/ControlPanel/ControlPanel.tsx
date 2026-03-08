@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { useSkyUI } from '../../hooks/useSkyUI'
 import { animateTo } from '../../lib/animator'
-import { exportPNG, exportSVG } from '../../lib/export'
+import { extractFromImage } from '../../lib/extractor'
+import { exportPNG } from '../../lib/export'
 import {
   getActiveSeed,
   getParamsSnapshot,
@@ -443,7 +444,7 @@ export const ControlPanel = () => {
   const [collapsed, setCollapsed] = useState(false)
   const [openSections, setOpenSections] = useState({
     atmosphere: true,
-    colors: false,
+    colors: true,
     effects: true,
   })
   const [exportOpen, setExportOpen] = useState(false)
@@ -547,6 +548,25 @@ export const ControlPanel = () => {
                   {prettify(preset)}
                 </button>
               ))}
+              <label className={styles.pill} style={{ cursor: 'pointer' }}>
+                Extract
+                <input
+                  type="file"
+                  accept="image/*"
+                  style={{ display: 'none' }}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0]
+                    if (!file) return
+                    extractFromImage(file)
+                      .then((params) => {
+                        setSeedState(null, false)
+                        animateTo(params)
+                      })
+                      .catch(console.error)
+                    e.target.value = ''
+                  }}
+                />
+              </label>
               <button type="button" className={styles.pill} onClick={triggerRandomize}>
                 Randomize
               </button>
@@ -680,17 +700,6 @@ export const ControlPanel = () => {
             )}
             <button type="button" className={styles.exportButton} onClick={() => setExportOpen((c) => !c)}>
               Export PNG
-            </button>
-            <button
-              type="button"
-              className={styles.exportButton}
-              onClick={() => {
-                exportSVG(getParamsSnapshot())
-                setExportOpen(false)
-                setCustomOpen(false)
-              }}
-            >
-              Export SVG
             </button>
           </div>
         </>
