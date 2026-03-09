@@ -107,12 +107,34 @@
 }
 
 .quickRow {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  padding: 10px 0 14px;
+  display: grid;
+  gap: 12px;
+  padding: 12px 0 14px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   margin-bottom: 4px;
+}
+
+.quickHeader {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.presetGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.quickDivider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.actionRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
 }
 
 .seedRow {
@@ -279,6 +301,24 @@
 
 .pillActive { background: var(--glass-active); }
 
+.actionPill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 999px;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  color: var(--glass-text);
+  white-space: nowrap;
+  font-family: var(--font-ui);
+  background: rgba(255, 255, 255, 0.06);
+}
+
 .toggleButton {
   border-radius: 999px;
   padding: 6px 12px;
@@ -296,11 +336,91 @@
 
 .exportFooter {
   position: relative;
-  display: flex;
+  display: grid;
   gap: 8px;
   padding: 12px 14px;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
   flex-shrink: 0;
+}
+
+.footerMeta {
+  position: relative;
+  display: flex;
+  justify-content: center;
+}
+
+.aboutButton {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  font-family: var(--font-ui);
+}
+
+.aboutOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(4, 6, 10, 0.28);
+  backdrop-filter: blur(8px);
+}
+
+.aboutPopover {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(520px, calc(100vw - 48px));
+  padding: 18px 20px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 16px;
+  background: rgba(10, 14, 22, 0.92);
+  backdrop-filter: blur(24px) saturate(160%);
+  box-shadow: -8px 0 48px rgba(0, 0, 0, 0.32), inset -1px 0 0 rgba(255,255,255,0.06);
+  display: grid;
+  gap: 14px;
+}
+
+.aboutTitle {
+  font-size: 18px;
+  color: var(--glass-text);
+  letter-spacing: 0.02em;
+}
+
+.aboutBody {
+  display: grid;
+  gap: 12px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.74);
+}
+
+.aboutUrls {
+  display: grid;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 12px;
+}
+
+.aboutUrls a {
+  color: rgba(198, 225, 255, 0.96);
+  text-decoration: underline;
+  text-decoration-color: rgba(198, 225, 255, 0.5);
+  text-underline-offset: 3px;
+  word-break: break-word;
+}
+
+.footerActions {
+  display: flex;
+  gap: 8px;
 }
 
 .exportButton {

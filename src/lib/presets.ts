@@ -3,9 +3,9 @@ import type { SkyParams } from '../types'
 export const PRESET_ORDER = [
   'GOLDEN_HOUR',
   'BLUE_HOUR',
+  'STORM',
   'VOLCANIC',
   'ARCTIC',
-  'STORM',
   'AURORA',
 ] as const
 

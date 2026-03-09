@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useSkyUI } from '../../hooks/useSkyUI'
 import { animateTo } from '../../lib/animator'
 import { extractFromImage } from '../../lib/extractor'
@@ -462,24 +463,29 @@ export const ControlPanel = () => {
     effects: true,
   })
   const [exportOpen, setExportOpen] = useState(false)
+  const [aboutOpen, setAboutOpen] = useState(false)
   const [customOpen, setCustomOpen] = useState(false)
   const [customWidth, setCustomWidth] = useState(1920)
   const popoverRef = useRef<HTMLDivElement | null>(null)
+  const aboutRef = useRef<HTMLDivElement | null>(null)
 
   const toggleSection = (key: keyof typeof openSections) =>
     setOpenSections((prev) => ({ ...prev, [key]: !prev[key] }))
 
   useEffect(() => {
-    if (!exportOpen) return
+    if (!exportOpen && !aboutOpen) return
     const handleClick = (e: MouseEvent) => {
       if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
         setExportOpen(false)
         setCustomOpen(false)
       }
+      if (aboutRef.current && !aboutRef.current.contains(e.target as Node)) {
+        setAboutOpen(false)
+      }
     }
     window.addEventListener('mousedown', handleClick)
     return () => window.removeEventListener('mousedown', handleClick)
-  }, [exportOpen])
+  }, [aboutOpen, exportOpen])
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -515,19 +521,54 @@ export const ControlPanel = () => {
   const customHeight = Math.round(customWidth / (16 / 9))
   const activeSeed = getActiveSeed()
   const formattedSeed = activeSeed === null ? '-----' : String(activeSeed).padStart(5, '0')
+  const aboutModal =
+    aboutOpen && typeof document !== 'undefined'
+      ? createPortal(
+          <div className={styles.aboutOverlay}>
+            <div className={styles.aboutPopover} ref={aboutRef}>
+              <div className={styles.aboutTitle}>Horizon</div>
+              <div className={styles.aboutBody}>
+                <div>
+                  A sky gradient generator. Tune color, atmosphere, and light. Extract from
+                  uploads, add noise, and refraction. Export as PNG.
+                </div>
+                <div>Made by Andrew Zell, Claude, and Codex on a sunny Sunday in Denver, Colorado.</div>
+                <div>
+                  Horizon is a part of a personal project to create an app for every letter of
+                  the alphabet. It was built with React, TypeScript, and WebGL2.
+                </div>
+                <div>Enjoying it? Let's connect.</div>
+                <div className={styles.aboutUrls}>
+                  <a href="https://linkedin.com/in/andrew-zell" target="_blank" rel="noreferrer">
+                    linkedin.com/in/andrew-zell
+                  </a>
+                  <a href="https://x.com/heyzell_" target="_blank" rel="noreferrer">
+                    x.com/heyzell_
+                  </a>
+                  <a href="https://github.com/andrew-zell" target="_blank" rel="noreferrer">
+                    github.com/andrew-zell
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )
+      : null
 
   return (
-    <div className={`${styles.sidebar} ${collapsed ? styles.sidebarCollapsed : ''}`}>
-      {collapsed ? (
-        <button
-          type="button"
-          className={`${styles.collapseButton} ${styles.collapseButtonOnly}`}
-          onClick={() => setCollapsed(false)}
-        >
-          ‹
-        </button>
-      ) : (
-        <>
+    <>
+      <div className={`${styles.sidebar} ${collapsed ? styles.sidebarCollapsed : ''}`}>
+        {collapsed ? (
+          <button
+            type="button"
+            className={`${styles.collapseButton} ${styles.collapseButtonOnly}`}
+            onClick={() => setCollapsed(false)}
+          >
+            ‹
+          </button>
+        ) : (
+          <>
           <div className={styles.header}>
             <div className={styles.headerMain}>
               <div className={styles.modeToggle}>
@@ -555,38 +596,44 @@ export const ControlPanel = () => {
 
           <div className={styles.scrollArea}>
             <div className={styles.quickRow}>
-              {PRESET_ORDER.map((preset) => (
-                <button
-                  key={preset}
-                  type="button"
-                  className={`${styles.pill} ${params.preset === preset ? styles.pillActive : ''}`}
-                  onClick={() => triggerPreset(preset as PresetName)}
-                >
-                  {prettify(preset)}
+              <div className={styles.quickHeader}>Presets</div>
+              <div className={styles.presetGrid}>
+                {PRESET_ORDER.map((preset) => (
+                  <button
+                    key={preset}
+                    type="button"
+                    className={`${styles.pill} ${params.preset === preset ? styles.pillActive : ''}`}
+                    onClick={() => triggerPreset(preset as PresetName)}
+                  >
+                    {prettify(preset)}
+                  </button>
+                ))}
+              </div>
+              <div className={styles.quickDivider} />
+              <div className={styles.actionRow}>
+                <button type="button" className={styles.actionPill} onClick={triggerRandomize}>
+                  Randomize
                 </button>
-              ))}
-              <label className={styles.pill} style={{ cursor: 'pointer' }}>
-                Extract
-                <input
-                  type="file"
-                  accept="image/*"
-                  style={{ display: 'none' }}
-                  onChange={(e) => {
-                    const file = e.target.files?.[0]
-                    if (!file) return
-                    extractFromImage(file)
-                      .then((params) => {
-                        setSeedState(null, false)
-                        animateTo(params)
+                <label className={styles.actionPill}>
+                  Extract from Image
+                  <input
+                    type="file"
+                    accept="image/*"
+                    style={{ display: 'none' }}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0]
+                      if (!file) return
+                      extractFromImage(file)
+                        .then((params) => {
+                          setSeedState(null, false)
+                          animateTo(params)
                       })
                       .catch(console.error)
-                    e.target.value = ''
-                  }}
-                />
-              </label>
-              <button type="button" className={styles.pill} onClick={triggerRandomize}>
-                Randomize
-              </button>
+                      e.target.value = ''
+                    }}
+                  />
+                </label>
+              </div>
             </div>
 
             <div className={styles.seedRow}>
@@ -664,6 +711,16 @@ export const ControlPanel = () => {
           </div>
 
           <div className={styles.exportFooter}>
+            <div className={styles.footerMeta}>
+              <button
+                type="button"
+                className={styles.aboutButton}
+                onClick={() => setAboutOpen((open) => !open)}
+              >
+                About (i)
+              </button>
+            </div>
+            <div className={styles.footerActions}>
             {exportOpen && (
               <div className={styles.exportPopover} ref={popoverRef}>
                 <div className={styles.exportOptions}>
@@ -718,9 +775,12 @@ export const ControlPanel = () => {
             <button type="button" className={styles.exportButton} onClick={() => setExportOpen((c) => !c)}>
               Export PNG
             </button>
+            </div>
           </div>
-        </>
-      )}
-    </div>
+          </>
+        )}
+      </div>
+      {aboutModal}
+    </>
   )
 }
