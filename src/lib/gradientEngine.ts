@@ -90,6 +90,7 @@ export const getSkyColor = (y: number, params: SkyParams): RGB => {
   const hazeHalfWidth = 0.06 + params.hazeWidth * 0.16
   const glowFactor =
     Math.max(0, 1 - Math.abs(y - hazeCenter) / hazeHalfWidth) *
+    params.hazeIntensity *
     params.horizonIntensity *
     (0.45 + params.sunsetIntensity * 0.55)
 
@@ -102,8 +103,8 @@ export const getSkyColor = (y: number, params: SkyParams): RGB => {
 
   const ground = hslToRgb(
     params.groundHue,
-    Math.max(10, params.horizonSaturation * 0.24),
-    Math.max(3, (1 - params.groundDarkness) * 28),
+    params.groundSaturation,
+    params.groundLightness,
   )
 
   const zenithToMid = smoothstep(0.18, 0.45, y)
@@ -137,11 +138,13 @@ export const interpolateSky = (from: SkyParams, to: SkyParams, t: number): SkyPa
   horizonLightness: from.horizonLightness + (to.horizonLightness - from.horizonLightness) * t,
   horizonIntensity: from.horizonIntensity + (to.horizonIntensity - from.horizonIntensity) * t,
   hazeWidth: from.hazeWidth + (to.hazeWidth - from.hazeWidth) * t,
+  hazeIntensity: from.hazeIntensity + (to.hazeIntensity - from.hazeIntensity) * t,
   atmosphericScatter: from.atmosphericScatter + (to.atmosphericScatter - from.atmosphericScatter) * t,
   sunsetIntensity: from.sunsetIntensity + (to.sunsetIntensity - from.sunsetIntensity) * t,
   clarity: from.clarity + (to.clarity - from.clarity) * t,
   groundHue: from.groundHue + (to.groundHue - from.groundHue) * t,
-  groundDarkness: from.groundDarkness + (to.groundDarkness - from.groundDarkness) * t,
+  groundSaturation: from.groundSaturation + (to.groundSaturation - from.groundSaturation) * t,
+  groundLightness: from.groundLightness + (to.groundLightness - from.groundLightness) * t,
   radialDispersion: from.radialDispersion + (to.radialDispersion - from.radialDispersion) * t,
   gradientScale: from.gradientScale + (to.gradientScale - from.gradientScale) * t,
   gradientShift: from.gradientShift + (to.gradientShift - from.gradientShift) * t,
@@ -156,15 +159,10 @@ const getGradientSamplePosition = (
   height: number,
   params: Pick<SkyParams, 'radialDispersion' | 'gradientScale' | 'gradientShift'>,
 ) => {
-  const originX = width / 2
-  const originY = height * 1.1
-  const dx = x - originX
-  const dy = y - originY
-  const dist = Math.sqrt(dx * dx + dy * dy)
-  const maxDist = Math.sqrt(originX * originX + originY * originY)
-  const radialT = dist / Math.max(1, maxDist)
   const linearT = y / Math.max(1, height)
-  const baseT = linearT + (radialT - linearT) * params.radialDispersion
+  const xCurve = 1 - Math.pow(Math.abs(x / Math.max(1, width) - 0.5) * 2, 2)
+  const bend = params.radialDispersion * xCurve * 0.35
+  const baseT = linearT - bend
   return clamp(baseT / Math.max(0.0001, params.gradientScale) - params.gradientShift)
 }
 

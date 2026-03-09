@@ -18,11 +18,13 @@ export interface SkyParams {
   horizonLightness: number
   horizonIntensity: number
   hazeWidth: number
+  hazeIntensity: number
   atmosphericScatter: number
   sunsetIntensity: number
   clarity: number
   groundHue: number
-  groundDarkness: number
+  groundSaturation: number
+  groundLightness: number
   radialDispersion: number
   gradientScale: number
   gradientShift: number

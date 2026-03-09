@@ -101,11 +101,13 @@ export function setParamsDirect(params: SkyParams) {
   store.params.horizonLightness = params.horizonLightness
   store.params.horizonIntensity = params.horizonIntensity
   store.params.hazeWidth = params.hazeWidth
+  store.params.hazeIntensity = params.hazeIntensity
   store.params.atmosphericScatter = params.atmosphericScatter
   store.params.sunsetIntensity = params.sunsetIntensity
   store.params.clarity = params.clarity
   store.params.groundHue = params.groundHue
-  store.params.groundDarkness = params.groundDarkness
+  store.params.groundSaturation = params.groundSaturation
+  store.params.groundLightness = params.groundLightness
   store.params.radialDispersion = params.radialDispersion
   store.params.gradientScale = params.gradientScale
   store.params.gradientShift = params.gradientShift

@@ -1,5 +1,5 @@
-app = "andrew-zell-horizon"
-primary_region = "den"
+app = "horizon-app"
+primary_region = "dfw"
 
 [build]
   dockerfile = "Dockerfile"

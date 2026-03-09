@@ -221,6 +221,13 @@ const AtmosphereSection = ({ params, openSections, toggleSection }: SectionProps
           max={100}
           onChange={(v) => setParam('hazeWidth', v / 100)}
         />
+        <Slider
+          label="Haze Intensity"
+          value={params.hazeIntensity * 100}
+          min={0}
+          max={100}
+          onChange={(v) => setParam('hazeIntensity', v / 100)}
+        />
       </div>
     )}
   </div>
@@ -319,8 +326,8 @@ const ColorsSection = ({ params, openSections, toggleSection }: SectionProps) =>
               style={{
                 background: hslCss(
                   params.groundHue,
-                  Math.max(10, params.horizonSaturation * 0.24),
-                  (1 - params.groundDarkness) * 28,
+                  params.groundSaturation,
+                  params.groundLightness,
                 ),
               }}
             />
@@ -335,11 +342,18 @@ const ColorsSection = ({ params, openSections, toggleSection }: SectionProps) =>
             onChange={(v) => setParam('groundHue', v)}
           />
           <Slider
-            label="Darkness"
-            value={params.groundDarkness * 100}
+            label="Saturation"
+            value={params.groundSaturation}
             min={0}
             max={100}
-            onChange={(v) => setParam('groundDarkness', v / 100)}
+            onChange={(v) => setParam('groundSaturation', v)}
+          />
+          <Slider
+            label="Lightness"
+            value={params.groundLightness}
+            min={0}
+            max={100}
+            onChange={(v) => setParam('groundLightness', v)}
           />
         </div>
       </div>
@@ -515,21 +529,24 @@ export const ControlPanel = () => {
       ) : (
         <>
           <div className={styles.header}>
-            <div className={styles.modeToggle}>
-              <button
-                type="button"
-                className={`${styles.modeButton} ${mode === 'basic' ? styles.modeButtonActive : ''}`}
-                onClick={() => setMode('basic')}
-              >
-                Basic
-              </button>
-              <button
-                type="button"
-                className={`${styles.modeButton} ${mode === 'advanced' ? styles.modeButtonActive : ''}`}
-                onClick={() => setMode('advanced')}
-              >
-                Advanced
-              </button>
+            <div className={styles.headerMain}>
+              <div className={styles.modeToggle}>
+                <button
+                  type="button"
+                  className={`${styles.modeButton} ${mode === 'basic' ? styles.modeButtonActive : ''}`}
+                  onClick={() => setMode('basic')}
+                >
+                  Basic
+                </button>
+                <button
+                  type="button"
+                  className={`${styles.modeButton} ${mode === 'advanced' ? styles.modeButtonActive : ''}`}
+                  onClick={() => setMode('advanced')}
+                >
+                  Advanced
+                </button>
+              </div>
+              <div className={styles.previewNote}>Preview may show dither. Exports are clean.</div>
             </div>
             <button type="button" className={styles.collapseButton} onClick={() => setCollapsed(true)}>
               ›

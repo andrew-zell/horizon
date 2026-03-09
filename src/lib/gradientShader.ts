@@ -54,6 +54,7 @@ void main() {
 
 const GRADIENT_FRAG = `#version 300 es
 precision highp float;
+precision highp int;
 
 uniform vec2 u_resolution;
 uniform float u_zenithHue;
@@ -64,8 +65,10 @@ uniform float u_horizonSat;
 uniform float u_horizonLight;
 uniform float u_horizonIntensity;
 uniform float u_hazeWidth;
+uniform float u_hazeIntensity;
 uniform float u_groundHue;
-uniform float u_groundDarkness;
+uniform float u_groundSat;
+uniform float u_groundLight;
 uniform float u_scatter;
 uniform float u_sunsetIntensity;
 uniform float u_clarity;
@@ -99,8 +102,13 @@ float smootherstep(float t) {
 vec3 skyColor(float t) {
   vec3 zenith = hsl2rgb(u_zenithHue, u_zenithSat, u_zenithLight);
   vec3 horizon = hsl2rgb(u_horizonHue, u_horizonSat, u_horizonLight);
-  vec3 ground = hsl2rgb(u_groundHue, 20.0, (1.0 - u_groundDarkness) * 20.0);
+  vec3 ground = hsl2rgb(u_groundHue, u_groundSat, u_groundLight);
   vec3 scatter = hsl2rgb(210.0, 60.0 * u_scatter, 40.0);
+  vec3 hazeLight = hsl2rgb(
+    u_horizonHue - 4.0,
+    u_horizonSat * 0.48,
+    min(97.0, u_horizonLight + 26.0)
+  );
 
   vec3 horizonWarm = mix(
     horizon,
@@ -113,10 +121,19 @@ vec3 skyColor(float t) {
   float wHorizon = smoothstep(0.35, 0.65, t) * (1.0 - smoothstep(0.65, 0.85, t));
   wHorizon *= u_horizonIntensity * 0.8 + 0.2;
   float wGround = smoothstep(0.72, 0.92, t);
+  float hazeCenter = 0.72;
+  float hazeHalfWidth = 0.06 + u_hazeWidth * 0.16;
+  float hazeMask = max(0.0, 1.0 - abs(t - hazeCenter) / hazeHalfWidth);
 
   vec3 color = zenith;
   color = mix(color, color + scatter * 0.4, wScatter);
   color = mix(color, horizonWarm, smoothstep(0.3, 0.72, t) * (1.0 - wGround));
+  vec3 horizonBand = mix(
+    mix(horizon, hazeLight, 0.42 + (1.0 - u_clarity) * 0.28),
+    hazeLight,
+    smoothstep(0.62, 0.82, t) * (0.22 + u_hazeWidth * 0.32)
+  );
+  color = mix(color, horizonBand, hazeMask * u_hazeIntensity * (0.25 + u_horizonIntensity * 0.55));
   color = mix(color, ground, wGround);
 
   float sunsetMask = smoothstep(0.3, 0.6, t) * (1.0 - smoothstep(0.6, 0.85, t));
@@ -129,27 +146,19 @@ vec3 skyColor(float t) {
   return clamp(color, 0.0, 1.0);
 }
 
-float bayer(ivec2 p) {
-  const int bayer4[16] = int[16](
-    0, 8, 2, 10,
-    12, 4, 14, 6,
-    3, 11, 1, 9,
-    15, 7, 13, 5
-  );
-  return float(bayer4[(p.x & 3) + (p.y & 3) * 4]) / 16.0 - 0.5;
+float interleavedNoise(vec2 p) {
+  return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715)))) - 0.5;
 }
 
 void main() {
   vec2 uv = gl_FragCoord.xy / u_resolution;
-  vec2 origin = vec2(0.5, -0.08);
-  vec2 toPixel = uv - origin;
-  float maxDist = length(vec2(0.5, 1.08));
-  float radialT = clamp(length(toPixel) / maxDist, 0.0, 1.0);
-  float linearT = uv.y;
-  float t = linearT + (radialT - linearT) * u_radialDispersion;
+  float linearT = 1.0 - uv.y;
+  float xCurve = 1.0 - pow(abs(uv.x - 0.5) * 2.0, 2.0);
+  float bend = u_radialDispersion * xCurve * 0.35;
+  float t = linearT - bend;
   t = clamp((t / max(u_gradientScale, 0.0001)) - u_gradientShift, 0.0, 1.0);
   vec3 color = skyColor(t);
-  color += bayer(ivec2(gl_FragCoord.xy)) / 255.0;
+  color += interleavedNoise(gl_FragCoord.xy) / 192.0;
   fragColor = vec4(clamp(color, 0.0, 1.0), 1.0);
 }`
 
@@ -165,6 +174,10 @@ out vec4 fragColor;
 
 float hash(float n) {
   return fract(sin(n) * 43758.5453123);
+}
+
+float interleavedNoise(vec2 p) {
+  return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715)))) - 0.5;
 }
 
 void main() {
@@ -197,6 +210,7 @@ void main() {
 
   vec4 causticColor = texture(u_texture, vec2(0.5, shiftedY));
   col.rgb = mix(col.rgb, max(col.rgb, causticColor.rgb * 1.4), caustic);
+  col.rgb += interleavedNoise(gl_FragCoord.xy + vec2(17.0, 29.0)) / 192.0;
 
   fragColor = vec4(clamp(col.rgb, 0.0, 1.0), 1.0);
 }`
@@ -279,8 +293,10 @@ export function createGradientRenderer(
     horizonLight: gl.getUniformLocation(gradientProgram, 'u_horizonLight'),
     horizonIntensity: gl.getUniformLocation(gradientProgram, 'u_horizonIntensity'),
     hazeWidth: gl.getUniformLocation(gradientProgram, 'u_hazeWidth'),
+    hazeIntensity: gl.getUniformLocation(gradientProgram, 'u_hazeIntensity'),
     groundHue: gl.getUniformLocation(gradientProgram, 'u_groundHue'),
-    groundDarkness: gl.getUniformLocation(gradientProgram, 'u_groundDarkness'),
+    groundSat: gl.getUniformLocation(gradientProgram, 'u_groundSat'),
+    groundLight: gl.getUniformLocation(gradientProgram, 'u_groundLight'),
     scatter: gl.getUniformLocation(gradientProgram, 'u_scatter'),
     sunsetIntensity: gl.getUniformLocation(gradientProgram, 'u_sunsetIntensity'),
     clarity: gl.getUniformLocation(gradientProgram, 'u_clarity'),
@@ -297,37 +313,45 @@ export function createGradientRenderer(
     resolution: gl.getUniformLocation(refractionProgram, 'u_resolution'),
   }
 
-  const passthroughUniforms = {
-    texture: gl.getUniformLocation(passthroughProgram, 'u_texture'),
-  }
-
   let textureWidth = 0
   let textureHeight = 0
+  let fboUsesFloat = false
 
   const ensureTargetSize = () => {
     if (textureWidth === canvas.width && textureHeight === canvas.height) return
     textureWidth = canvas.width
     textureHeight = canvas.height
     gl.bindTexture(gl.TEXTURE_2D, fboTexture)
-    gl.texImage2D(
-      gl.TEXTURE_2D,
-      0,
-      gl.RGBA,
-      textureWidth,
-      textureHeight,
-      0,
-      gl.RGBA,
-      gl.UNSIGNED_BYTE,
-      null,
-    )
+    const ext = gl.getExtension('EXT_color_buffer_half_float')
+
+    const allocateTarget = (internalFormat: number, type: number) => {
+      gl.texImage2D(
+        gl.TEXTURE_2D,
+        0,
+        internalFormat,
+        textureWidth,
+        textureHeight,
+        0,
+        gl.RGBA,
+        type,
+        null,
+      )
+      gl.bindFramebuffer(gl.FRAMEBUFFER, fbo)
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, fboTexture, 0)
+      const status = gl.checkFramebufferStatus(gl.FRAMEBUFFER)
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+      return status === gl.FRAMEBUFFER_COMPLETE
+    }
+
+    fboUsesFloat = Boolean(ext) && allocateTarget(gl.RGBA16F, gl.HALF_FLOAT)
+    if (!fboUsesFloat) {
+      allocateTarget(gl.RGBA8, gl.UNSIGNED_BYTE)
+    }
   }
 
   return {
     render(params: SkyParams) {
-      ensureTargetSize()
       gl.bindVertexArray(vao)
-
-      gl.bindFramebuffer(gl.FRAMEBUFFER, fbo)
       gl.viewport(0, 0, canvas.width, canvas.height)
       gl.useProgram(gradientProgram)
       gl.uniform2f(gradientUniforms.resolution, canvas.width, canvas.height)
@@ -339,34 +363,40 @@ export function createGradientRenderer(
       gl.uniform1f(gradientUniforms.horizonLight, params.horizonLightness)
       gl.uniform1f(gradientUniforms.horizonIntensity, params.horizonIntensity)
       gl.uniform1f(gradientUniforms.hazeWidth, params.hazeWidth)
+      gl.uniform1f(gradientUniforms.hazeIntensity, params.hazeIntensity)
       gl.uniform1f(gradientUniforms.groundHue, params.groundHue)
-      gl.uniform1f(gradientUniforms.groundDarkness, params.groundDarkness)
+      gl.uniform1f(gradientUniforms.groundSat, params.groundSaturation)
+      gl.uniform1f(gradientUniforms.groundLight, params.groundLightness)
       gl.uniform1f(gradientUniforms.scatter, params.atmosphericScatter)
       gl.uniform1f(gradientUniforms.sunsetIntensity, params.sunsetIntensity)
       gl.uniform1f(gradientUniforms.clarity, params.clarity)
       gl.uniform1f(gradientUniforms.radialDispersion, params.radialDispersion)
       gl.uniform1f(gradientUniforms.gradientScale, params.gradientScale)
       gl.uniform1f(gradientUniforms.gradientShift, params.gradientShift)
+
+      if (!params.effects.barsEnabled) {
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
+        return
+      }
+
+      ensureTargetSize()
+      gl.bindFramebuffer(gl.FRAMEBUFFER, fbo)
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
 
       gl.bindFramebuffer(gl.FRAMEBUFFER, null)
-      gl.viewport(0, 0, canvas.width, canvas.height)
       gl.activeTexture(gl.TEXTURE0)
       gl.bindTexture(gl.TEXTURE_2D, fboTexture)
-
-      if (params.effects.barsEnabled) {
-        console.log('refraction pass running, strength:', params.effects.refractStrength)
-        gl.useProgram(refractionProgram)
-        gl.uniform1i(refractionUniforms.texture, 0)
-        gl.uniform1f(refractionUniforms.barWidth, params.effects.barWidth)
-        gl.uniform1f(refractionUniforms.refraction, params.effects.refractStrength)
-        gl.uniform1f(refractionUniforms.seed, params.effects.barSeed)
-        gl.uniform2f(refractionUniforms.resolution, canvas.width, canvas.height)
-      } else {
-        gl.useProgram(passthroughProgram)
-        gl.uniform1i(passthroughUniforms.texture, 0)
+      if (fboUsesFloat) {
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
       }
-
+      gl.useProgram(refractionProgram)
+      gl.uniform1i(refractionUniforms.texture, 0)
+      gl.uniform1f(refractionUniforms.barWidth, params.effects.barWidth)
+      gl.uniform1f(refractionUniforms.refraction, params.effects.refractStrength)
+      gl.uniform1f(refractionUniforms.seed, params.effects.barSeed)
+      gl.uniform2f(refractionUniforms.resolution, canvas.width, canvas.height)
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
     },
     getGL() {
